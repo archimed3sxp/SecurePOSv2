@@ -1,6 +1,5 @@
 import { ethers } from 'ethers';
 import { CONTRACT_ABI, CONTRACT_ADDRESS, ROLES } from '../config/networks';
-import { securePOSAbi, securePOSAddress } from './config';
 
 export const getContract = (signerOrProvider: ethers.Signer | ethers.Provider) => {
   return new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signerOrProvider);
@@ -8,17 +7,22 @@ export const getContract = (signerOrProvider: ethers.Signer | ethers.Provider) =
 
 export const recordSaleHash = async (
   signer: ethers.Signer,
-  saleHash: string
+  saleHash: string,
+  amount: number
 ): Promise<string> => {
   try {
     const contract = getContract(signer);
     
-    const hashBytes = '0x' + saleHash;
+    // Convert hash to bytes32 format
+    const hashBytes = ethers.zeroPadValue('0x' + saleHash, 32);
     
-    const tx = await contract.recordSaleHash(hashBytes);
+    // Convert amount to wei (assuming amount is in cents, convert to wei)
+    const amountWei = ethers.parseUnits(amount.toString(), 'wei');
+    
+    const tx = await contract.recordSaleHash(hashBytes, amountWei);
     const receipt = await tx.wait();
     
-    return receipt.transactionHash;
+    return receipt.hash;
   } catch (error) {
     console.error('Error recording sale hash:', error);
     throw new Error('Failed to record sale on blockchain');
@@ -38,13 +42,10 @@ export const addUser = async (
                      role === 'auditor' ? ROLES.AUDITOR : 
                      ROLES.CASHIER;
     
-    // For demo purposes, simulate the transaction
-    console.log('Adding user:', userAddress, 'with role:', role);
+    const tx = await contract.addUser(userAddress, roleValue, name);
+    const receipt = await tx.wait();
     
-    const mockTxHash = '0x' + Array.from({length: 64}, () => Math.floor(Math.random() * 16).toString(16)).join('');
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    return mockTxHash;
+    return receipt.hash;
   } catch (error) {
     console.error('Error adding user:', error);
     throw new Error('Failed to add user');
@@ -58,12 +59,10 @@ export const removeUser = async (
   try {
     const contract = getContract(signer);
     
-    console.log('Removing user:', userAddress);
+    const tx = await contract.removeUser(userAddress);
+    const receipt = await tx.wait();
     
-    const mockTxHash = '0x' + Array.from({length: 64}, () => Math.floor(Math.random() * 16).toString(16)).join('');
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    return mockTxHash;
+    return receipt.hash;
   } catch (error) {
     console.error('Error removing user:', error);
     throw new Error('Failed to remove user');
@@ -77,20 +76,17 @@ export const recordAudit = async (
   try {
     const contract = getContract(signer);
 
-    const rootBytes = ethers.utils.hexlify(ethers.utils.zeroPad('0x' + merkleRoot.replace(/^0x/, ''), 32));
-
-    console.log('Recording Merkle Root to blockchain:', rootBytes);
+    const rootBytes = ethers.zeroPadValue('0x' + merkleRoot.replace(/^0x/, ''), 32);
 
     const tx = await contract.recordAudit(rootBytes);
     const receipt = await tx.wait();
 
-    return receipt.transactionHash;
+    return receipt.hash;
   } catch (error) {
     console.error('Error recording audit:', error);
     throw new Error('Failed to record audit');
   }
 };
-
 
 export const checkUserRole = async (
   provider: ethers.Provider,
@@ -102,12 +98,24 @@ export const checkUserRole = async (
   role: string;
 }> => {
   try {
-    // For demo purposes, return default permissions
+    const contract = getContract(provider);
+    
+    const [isManager, isAuditor, isCashier] = await Promise.all([
+      contract.isManager(userAddress),
+      contract.isAuditor(userAddress),
+      contract.isCashier(userAddress)
+    ]);
+    
+    let role = 'none';
+    if (isManager) role = 'manager';
+    else if (isAuditor) role = 'auditor';
+    else if (isCashier) role = 'cashier';
+    
     return {
-      isManager: true,
-      isAuditor: true,
-      isCashier: true,
-      role: 'manager'
+      isManager,
+      isAuditor,
+      isCashier,
+      role
     };
   } catch (error) {
     console.error('Error checking user role:', error);
@@ -129,12 +137,14 @@ export const getContractStatistics = async (
   userCount: number;
 }> => {
   try {
-    // For demo purposes, return mock statistics
+    const contract = getContract(provider);
+    const [totalSales, totalRevenue, auditCount, userCount] = await contract.getStatistics();
+    
     return {
-      totalSales: 0,
-      totalRevenue: '0.0',
-      auditCount: 0,
-      userCount: 1
+      totalSales: Number(totalSales),
+      totalRevenue: ethers.formatEther(totalRevenue),
+      auditCount: Number(auditCount),
+      userCount: Number(userCount)
     };
   } catch (error) {
     console.error('Error getting statistics:', error);
@@ -151,8 +161,9 @@ export const getSaleHashes = async (
   provider: ethers.Provider
 ): Promise<string[]> => {
   try {
-    // For demo purposes, return empty array
-    return [];
+    const contract = getContract(provider);
+    const hashes = await contract.getAllSaleHashes();
+    return hashes;
   } catch (error) {
     console.error('Error getting sale hashes:', error);
     return [];
@@ -164,8 +175,10 @@ export const verifySaleOnChain = async (
   saleHash: string
 ): Promise<boolean> => {
   try {
-    // For demo purposes, return true
-    return true;
+    const contract = getContract(provider);
+    const hashBytes = ethers.zeroPadValue('0x' + saleHash, 32);
+    const isVerified = await contract.verifySaleHash(hashBytes);
+    return isVerified;
   } catch (error) {
     console.error('Error verifying sale:', error);
     return false;

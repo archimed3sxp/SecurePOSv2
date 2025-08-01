@@ -2,17 +2,18 @@ import React, { useState } from 'react';
 import { Users, Shield, Eye, AlertCircle } from 'lucide-react';
 import WalletConnection from './WalletConnection';
 import { useWallet } from '../hooks/useWallet';
-import { isWhitelisted } from '../utils/storage';
+import { checkUserRole } from '../utils/contract';
 
 interface RoleSelectorProps {
   onRoleSelect: (role: 'manager' | 'auditor' | 'cashier') => void;
 }
 
 const RoleSelector: React.FC<RoleSelectorProps> = ({ onRoleSelect }) => {
-  const { isConnected } = useWallet();
+  const { isConnected, account, provider } = useWallet();
   const [selectedRole, setSelectedRole] = useState<'manager' | 'auditor' | 'cashier' | null>(null);
   const [showWalletConnection, setShowWalletConnection] = useState(false);
   const [accessDenied, setAccessDenied] = useState<string | null>(null);
+  const [isCheckingRole, setIsCheckingRole] = useState(false);
 
   const roles = [
     {
@@ -46,18 +47,49 @@ const RoleSelector: React.FC<RoleSelectorProps> = ({ onRoleSelect }) => {
     if (!isConnected) {
       setShowWalletConnection(true);
     } else {
-      onRoleSelect(role);
+      checkRolePermission(role);
     }
   };
 
+  const checkRolePermission = async (role: 'manager' | 'auditor' | 'cashier') => {
+    if (!provider || !account) return;
+    
+    setIsCheckingRole(true);
+    try {
+      const userRoles = await checkUserRole(provider, account);
+      
+      let hasPermission = false;
+      switch (role) {
+        case 'manager':
+          hasPermission = userRoles.isManager;
+          break;
+        case 'auditor':
+          hasPermission = userRoles.isAuditor;
+          break;
+        case 'cashier':
+          hasPermission = userRoles.isCashier;
+          break;
+      }
+      
+      if (hasPermission) {
+        setAccessDenied(null);
+        onRoleSelect(role);
+      } else {
+        setAccessDenied(`You don't have ${role} permissions. Please contact an administrator to be added to the system.`);
+      }
+    } catch (error) {
+      console.error('Error checking role permission:', error);
+      setAccessDenied('Unable to verify permissions. Please try again.');
+    } finally {
+      setIsCheckingRole(false);
+    }
+  };
   // If wallet gets connected and we have a selected role, proceed
   React.useEffect(() => {
     if (isConnected && selectedRole) {
-      // For demo purposes, allow all roles without whitelist check
-      setAccessDenied(null);
-      onRoleSelect(selectedRole);
+      checkRolePermission(selectedRole);
     }
-  }, [isConnected, selectedRole, onRoleSelect]);
+  }, [isConnected, selectedRole]);
 
   if (showWalletConnection && !isConnected) {
     return (
@@ -108,6 +140,19 @@ const RoleSelector: React.FC<RoleSelectorProps> = ({ onRoleSelect }) => {
     );
   }
 
+  if (isCheckingRole) {
+    return (
+      <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
+        <div className="text-center">
+          <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+            <Shield className="w-8 h-8 text-blue-600 animate-spin" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Checking Permissions</h2>
+          <p className="text-gray-600">Verifying your role on the blockchain...</p>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
       <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">

@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import { DEFAULT_NETWORK } from '../config/networks';
-import { recordSaleHash } from '../utils/contract';
 
 export const useWallet = () => {
   const [account, setAccount] = useState<string>('');
@@ -31,7 +30,6 @@ export const useWallet = () => {
 
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
-      // const signer = provider.getSigner();
       const network = await provider.getNetwork();
 
       setProvider(provider);
@@ -47,7 +45,7 @@ export const useWallet = () => {
     } catch (error) {
       console.error('Failed to connect wallet:', error);
       // Check if user rejected the request
-      if (error.code === 4001) {
+      if ((error as any).code === 4001) {
         alert('Wallet connection rejected by user.');
       } else {
         alert('Failed to connect wallet. Please try again.');

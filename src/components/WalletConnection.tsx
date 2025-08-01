@@ -1,7 +1,7 @@
 import React from 'react';
 import { Wallet, LogOut, Shield, AlertCircle } from 'lucide-react';
 import { useWallet } from '../hooks/useWallet';
-import { DEFAULT_NETWORK } from '../config/networks';
+import { DEFAULT_NETWORK, CONTRACT_ADDRESS } from '../config/networks';
 
 const WalletConnection: React.FC = () => {
   const { 

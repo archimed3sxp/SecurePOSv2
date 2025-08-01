@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
+import { useEffect } from 'react';
 import { ShoppingCart, Plus, Trash2, CreditCard, Hash, CheckCircle, ExternalLink } from 'lucide-react';
 import { Sale, SaleItem } from '../types';
+import { InventoryItem } from '../types';
 import { getInventoryItems } from '../utils/storage';
 import { generateSaleHash } from '../utils/crypto';
 import { saveSale, saveAuditRecord } from '../utils/storage';
@@ -23,7 +25,7 @@ const POSInterface: React.FC = () => {
 
   useEffect(() => {
     setInventoryItems(getInventoryItems());
-}, []);
+  }, []);
 
   const addItem = () => {
     if (!currentItem.name || currentItem.price <= 0) return;
@@ -56,7 +58,7 @@ const POSInterface: React.FC = () => {
         amount: getTotalAmount(),
         items: [...items],
         paymentMethod,
-        cashierId: account
+        cashierId: account || ''
       };
 
       // Generate hash
@@ -64,8 +66,7 @@ const POSInterface: React.FC = () => {
       sale.hash = hash;
 
       // Record hash on blockchain
-      const tx = await recordSaleHash(signer, hash);
-      const receipt = await tx.wait();
+      const txHash = await recordSaleHash(signer, hash, Math.floor(sale.amount * 100)); // Convert to cents
       sale.txHash = txHash;
 
       // Save to local storage
@@ -75,8 +76,8 @@ const POSInterface: React.FC = () => {
       saveAuditRecord({
         saleHash: hash,
         timestamp: sale.timestamp,
-        blockNumber: receipt.blockNumber, // Would be filled by actual blockchain response
-        txHash: tx.hash
+        blockNumber: 0, // Will be filled by blockchain response
+        txHash: txHash
       });
 
       setLastSale(sale);
@@ -84,7 +85,7 @@ const POSInterface: React.FC = () => {
       
     } catch (error) {
       console.error('Failed to process sale:', error);
-      alert(`Failed to process sale: ${error.message || 'Please try again.'}`);
+      alert(`Failed to process sale: ${(error as any).message || 'Please try again.'}`);
     } finally {
       setIsProcessing(false);
     }

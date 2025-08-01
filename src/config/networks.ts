@@ -60,7 +60,7 @@ export const CONTRACT_ABI = [
 ];
 
 // Contract address - will be updated after deployment
-export const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS || "0x5245b85800a1e3e79268da58b390ae10b0424956";
+export const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS || "0x5245b85800a1E3E79268Da58b390ae10b0424956";
 
 // Role enum values (matching the smart contract)
 export const ROLES = {

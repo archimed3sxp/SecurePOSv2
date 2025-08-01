@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Users, Plus, Trash2, UserCheck, UserX, Shield } from 'lucide-react';
 import { WhitelistEntry } from '../types';
-import { saveWhitelistEntry, getWhitelist, removeWhitelistEntry } from '../utils/storage';
+import { addUser, removeUser } from '../utils/contract';
 import { useWallet } from '../hooks/useWallet';
 
 const UserManagement: React.FC = () => {
-  const { account } = useWallet();
-  const [whitelist, setWhitelist] = useState<WhitelistEntry[]>([]);
+  const { account, signer } = useWallet();
+  const [users, setUsers] = useState<WhitelistEntry[]>([]);
   const [showAddUser, setShowAddUser] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [newUser, setNewUser] = useState({
     address: '',
     role: 'cashier' as 'manager' | 'auditor' | 'cashier',
@@ -15,30 +16,62 @@ const UserManagement: React.FC = () => {
   });
 
   useEffect(() => {
-    setWhitelist(getWhitelist());
+    // Load users from local storage for display
+    // In a full implementation, you'd fetch from the contract
+    const savedUsers = localStorage.getItem('contract_users');
+    if (savedUsers) {
+      setUsers(JSON.parse(savedUsers));
+    }
   }, []);
 
-  const handleAddUser = () => {
-    if (!newUser.address || !newUser.role) return;
+  const handleAddUser = async () => {
+    if (!newUser.address || !newUser.role || !signer) return;
 
-    const entry: WhitelistEntry = {
-      address: newUser.address,
-      role: newUser.role,
-      name: newUser.name || undefined,
-      addedBy: account,
-      addedAt: Date.now()
-    };
+    setIsProcessing(true);
+    try {
+      const txHash = await addUser(signer, newUser.address, newUser.role, newUser.name);
+      
+      const entry: WhitelistEntry = {
+        address: newUser.address,
+        role: newUser.role,
+        name: newUser.name || undefined,
+        addedBy: account || '',
+        addedAt: Date.now()
+      };
 
-    saveWhitelistEntry(entry);
-    setWhitelist(getWhitelist());
-    setNewUser({ address: '', role: 'cashier', name: '' });
-    setShowAddUser(false);
+      const updatedUsers = [...users, entry];
+      setUsers(updatedUsers);
+      localStorage.setItem('contract_users', JSON.stringify(updatedUsers));
+      
+      setNewUser({ address: '', role: 'cashier', name: '' });
+      setShowAddUser(false);
+      
+      alert(`User added successfully! Transaction: ${txHash.slice(0, 10)}...`);
+    } catch (error) {
+      console.error('Error adding user:', error);
+      alert(`Failed to add user: ${(error as any).message}`);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
-  const handleRemoveUser = (address: string) => {
-    if (confirm('Are you sure you want to remove this user from the whitelist?')) {
-      removeWhitelistEntry(address);
-      setWhitelist(getWhitelist());
+  const handleRemoveUser = async (address: string) => {
+    if (!signer || !confirm('Are you sure you want to remove this user?')) return;
+    
+    setIsProcessing(true);
+    try {
+      const txHash = await removeUser(signer, address);
+      
+      const updatedUsers = users.filter(user => user.address !== address);
+      setUsers(updatedUsers);
+      localStorage.setItem('contract_users', JSON.stringify(updatedUsers));
+      
+      alert(`User removed successfully! Transaction: ${txHash.slice(0, 10)}...`);
+    } catch (error) {
+      console.error('Error removing user:', error);
+      alert(`Failed to remove user: ${(error as any).message}`);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -116,10 +149,11 @@ const UserManagement: React.FC = () => {
             <div className="flex space-x-2">
               <button
                 onClick={handleAddUser}
+                disabled={isProcessing}
                 className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
               >
                 <UserCheck className="w-4 h-4" />
-                <span>Add</span>
+                <span>{isProcessing ? 'Adding...' : 'Add'}</span>
               </button>
               <button
                 onClick={() => setShowAddUser(false)}
@@ -154,14 +188,14 @@ const UserManagement: React.FC = () => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {whitelist.length === 0 ? (
+            {users.length === 0 ? (
               <tr>
                 <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
-                  No users in whitelist yet
+                  No users added yet
                 </td>
               </tr>
             ) : (
-              whitelist.map((entry) => (
+              users.map((entry) => (
                 <tr key={entry.address} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
@@ -191,8 +225,9 @@ const UserManagement: React.FC = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <button
                       onClick={() => handleRemoveUser(entry.address)}
+                      disabled={isProcessing}
                       className="text-red-600 hover:text-red-900 transition-colors"
-                      title="Remove from whitelist"
+                      title="Remove user"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
