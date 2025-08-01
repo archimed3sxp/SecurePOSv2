@@ -66,8 +66,8 @@ const WalletConnection: React.FC = () => {
         <div className="text-sm text-gray-500">
           <p>Network: <span className="font-medium">{DEFAULT_NETWORK.name}</span></p>
           <p>Chain ID: <span className="font-medium">{chainId || 'Unknown'}</span></p>
-          <p className="text-xs mt-2 text-green-600">
-            ✅ Demo Mode: Sales will be processed locally
+          <p className="text-xs mt-2 text-blue-600">
+            ✅ Testnet Mode: Connected to Lisk Sepolia
           </p>
         </div>
       </div>

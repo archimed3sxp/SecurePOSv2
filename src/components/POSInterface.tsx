@@ -65,27 +65,34 @@ const POSInterface: React.FC = () => {
       const hash = generateSaleHash(sale);
       sale.hash = hash;
 
-      // Record hash on blockchain
-      const txHash = await recordSaleHash(signer, hash, Math.floor(sale.amount * 100)); // Convert to cents
-      sale.txHash = txHash;
+      try {
+        // Try to record hash on blockchain
+        const txHash = await recordSaleHash(signer, hash, Math.floor(sale.amount * 100)); // Convert to cents
+        sale.txHash = txHash;
+      } catch (contractError) {
+        console.warn('Failed to record on blockchain, saving locally:', contractError);
+        // Continue with local storage even if blockchain fails
+      }
 
       // Save to local storage
       saveSale(sale);
 
-      // Save audit record
-      saveAuditRecord({
-        saleHash: hash,
-        timestamp: sale.timestamp,
-        blockNumber: 0, // Will be filled by blockchain response
-        txHash: txHash
-      });
+      // Save audit record if we have a transaction hash
+      if (sale.txHash) {
+        saveAuditRecord({
+          saleHash: hash,
+          timestamp: sale.timestamp,
+          blockNumber: 0, // Will be filled by blockchain response
+          txHash: sale.txHash
+        });
+      }
 
       setLastSale(sale);
       setItems([]);
       
     } catch (error) {
       console.error('Failed to process sale:', error);
-      alert(`Failed to process sale: ${(error as any).message || 'Please try again.'}`);
+      alert(`Failed to process sale: ${(error as any).message || 'Please try again. Sale may have been saved locally.'}`);
     } finally {
       setIsProcessing(false);
     }

@@ -29,7 +29,14 @@ const UserManagement: React.FC = () => {
 
     setIsProcessing(true);
     try {
-      const txHash = await addUser(signer, newUser.address, newUser.role, newUser.name);
+      let txHash = '';
+      
+      try {
+        txHash = await addUser(signer, newUser.address, newUser.role, newUser.name);
+      } catch (contractError) {
+        console.warn('Failed to add user to contract, adding locally:', contractError);
+        // Continue with local storage even if blockchain fails
+      }
       
       const entry: WhitelistEntry = {
         address: newUser.address,
@@ -46,7 +53,11 @@ const UserManagement: React.FC = () => {
       setNewUser({ address: '', role: 'cashier', name: '' });
       setShowAddUser(false);
       
-      alert(`User added successfully! Transaction: ${txHash.slice(0, 10)}...`);
+      if (txHash) {
+        alert(`User added successfully! Transaction: ${txHash.slice(0, 10)}...`);
+      } else {
+        alert('User added locally. Blockchain transaction failed but user is saved.');
+      }
     } catch (error) {
       console.error('Error adding user:', error);
       alert(`Failed to add user: ${(error as any).message}`);
@@ -60,13 +71,24 @@ const UserManagement: React.FC = () => {
     
     setIsProcessing(true);
     try {
-      const txHash = await removeUser(signer, address);
+      let txHash = '';
+      
+      try {
+        txHash = await removeUser(signer, address);
+      } catch (contractError) {
+        console.warn('Failed to remove user from contract, removing locally:', contractError);
+        // Continue with local storage even if blockchain fails
+      }
       
       const updatedUsers = users.filter(user => user.address !== address);
       setUsers(updatedUsers);
       localStorage.setItem('contract_users', JSON.stringify(updatedUsers));
       
-      alert(`User removed successfully! Transaction: ${txHash.slice(0, 10)}...`);
+      if (txHash) {
+        alert(`User removed successfully! Transaction: ${txHash.slice(0, 10)}...`);
+      } else {
+        alert('User removed locally. Blockchain transaction failed but user is removed from local storage.');
+      }
     } catch (error) {
       console.error('Error removing user:', error);
       alert(`Failed to remove user: ${(error as any).message}`);

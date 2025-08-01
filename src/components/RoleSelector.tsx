@@ -2,18 +2,15 @@ import React, { useState } from 'react';
 import { Users, Shield, Eye, AlertCircle } from 'lucide-react';
 import WalletConnection from './WalletConnection';
 import { useWallet } from '../hooks/useWallet';
-import { checkUserRole } from '../utils/contract';
 
 interface RoleSelectorProps {
   onRoleSelect: (role: 'manager' | 'auditor' | 'cashier') => void;
 }
 
 const RoleSelector: React.FC<RoleSelectorProps> = ({ onRoleSelect }) => {
-  const { isConnected, account, provider } = useWallet();
+  const { isConnected } = useWallet();
   const [selectedRole, setSelectedRole] = useState<'manager' | 'auditor' | 'cashier' | null>(null);
   const [showWalletConnection, setShowWalletConnection] = useState(false);
-  const [accessDenied, setAccessDenied] = useState<string | null>(null);
-  const [isCheckingRole, setIsCheckingRole] = useState(false);
 
   const roles = [
     {
@@ -47,49 +44,16 @@ const RoleSelector: React.FC<RoleSelectorProps> = ({ onRoleSelect }) => {
     if (!isConnected) {
       setShowWalletConnection(true);
     } else {
-      checkRolePermission(role);
+      onRoleSelect(role);
     }
   };
 
-  const checkRolePermission = async (role: 'manager' | 'auditor' | 'cashier') => {
-    if (!provider || !account) return;
-    
-    setIsCheckingRole(true);
-    try {
-      const userRoles = await checkUserRole(provider, account);
-      
-      let hasPermission = false;
-      switch (role) {
-        case 'manager':
-          hasPermission = userRoles.isManager;
-          break;
-        case 'auditor':
-          hasPermission = userRoles.isAuditor;
-          break;
-        case 'cashier':
-          hasPermission = userRoles.isCashier;
-          break;
-      }
-      
-      if (hasPermission) {
-        setAccessDenied(null);
-        onRoleSelect(role);
-      } else {
-        setAccessDenied(`You don't have ${role} permissions. Please contact an administrator to be added to the system.`);
-      }
-    } catch (error) {
-      console.error('Error checking role permission:', error);
-      setAccessDenied('Unable to verify permissions. Please try again.');
-    } finally {
-      setIsCheckingRole(false);
-    }
-  };
-  // If wallet gets connected and we have a selected role, proceed
+  // If wallet gets connected and we have a selected role, proceed with role selection
   React.useEffect(() => {
     if (isConnected && selectedRole) {
-      checkRolePermission(selectedRole);
+      onRoleSelect(selectedRole);
     }
-  }, [isConnected, selectedRole]);
+  }, [isConnected, selectedRole, onRoleSelect]);
 
   if (showWalletConnection && !isConnected) {
     return (
@@ -115,49 +79,16 @@ const RoleSelector: React.FC<RoleSelectorProps> = ({ onRoleSelect }) => {
     );
   }
 
-  if (accessDenied) {
-    return (
-      <div className="space-y-6">
-        <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
-          <div className="text-center">
-            <div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
-              <AlertCircle className="w-8 h-8 text-red-600" />
-            </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">Access Denied</h2>
-            <p className="text-red-600 mb-6">{accessDenied}</p>
-            <button
-              onClick={() => {
-                setAccessDenied(null);
-                setSelectedRole(null);
-              }}
-              className="bg-blue-800 text-white px-6 py-2 rounded-lg hover:bg-blue-900 transition-colors"
-            >
-              Back to Role Selection
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (isCheckingRole) {
-    return (
-      <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
-        <div className="text-center">
-          <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
-            <Shield className="w-8 h-8 text-blue-600 animate-spin" />
-          </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Checking Permissions</h2>
-          <p className="text-gray-600">Verifying your role on the blockchain...</p>
-        </div>
-      </div>
-    );
-  }
   return (
     <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
       <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">
         Select Your Role
       </h2>
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+        <p className="text-sm text-blue-800">
+          <strong>Note:</strong> You can select any role to explore the interface. Some blockchain operations may require appropriate permissions on the smart contract.
+        </p>
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {roles.map((role) => {
           const Icon = role.icon;
